@@ -23,7 +23,7 @@ uv pip install -e .
 
 ### 3. 使用
 ```bash
-python --view --timeout --url ws://xx.xx.xx.xx:8439
+python test/arm_test.py --view --timeout --url ws://xx.xx.xx.xx:8439
 ```
 
 #### 参数说明
