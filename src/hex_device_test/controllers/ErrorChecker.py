@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional,Any
+from typing import List, Tuple, Optional,Any, Union
 
 from hex_device import Arm, MotorError
 from hex_device import public_api_types_pb2
@@ -95,11 +95,20 @@ class ArmErrorChecker:
         return False, ArmErrorStatus.Normal, None
     
     @staticmethod
-    def format_error(code: ArmErrorStatus, reason: Any) -> str:
+    def format_error(code: ArmErrorStatus, reason: Union[int, List[Optional[int]], str] ) -> str:
         if code == ArmErrorStatus.MotorError:
-            return (f"motor{idx} err:"
-                for idx, reason in enumerate(reason)
-                if reason is not None)
+            
+            if not reason:                                              # 防 None
+                return ""
+            
+            if isinstance(reason, list) and isinstance(reason[0], str):
+                return ", ".join(reason)                                 # 正常路径
+            
+            return ", ".join(                                          # 兜底（实际走不到，但留个对的）
+                f"motor{idx} err: {MotorError(_r).name}"
+                for idx, _r in enumerate(reason)
+                if _r is not None
+            )
                 
         elif code == ArmErrorStatus.ArmError:
             return public_api_types_pb2.ParkingStopCategory.Name(reason)
