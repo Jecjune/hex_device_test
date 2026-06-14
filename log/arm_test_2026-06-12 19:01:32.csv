@@ -1,0 +1,2 @@
+run_time,device_id,state,loop_counter,motor_0_temperature,motor_1_temperature,motor_2_temperature,motor_3_temperature,motor_4_temperature,motor_5_temperature,driver_0_temperature,driver_1_temperature,driver_2_temperature,driver_3_temperature,driver_4_temperature,driver_5_temperature,errors
+0:02:05,0,Normal,5,29.899999618530273,38.400001525878906,34.400001525878906,31.5,32.60000228881836,34.29999923706055,34.79999923706055,39.79999923706055,37.79999923706055,36.79999923706055,45.10000228881836,38.20000076293945,

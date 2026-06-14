@@ -92,7 +92,7 @@ class ArmCoordinator(BaseCoordinator):
         if self._waypoints:
             self.trajectory_player = TrajectoryPlanner(
                 waypoints=self._waypoints,
-                segment_duration=3.0
+                segment_duration=2.0
                 )
         else:
             print(f"[Coordinator] Not waypoints !!!!")

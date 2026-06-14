@@ -4,12 +4,19 @@ import threading
 import signal
 import time
 import sys
+from pathlib import Path
 
 
 from dataclasses import dataclass
 
 # from hex_device_test.managers.Coordinator import ArmCoordinator
 from hex_device_test.managers.CoordinatorProcess import ArmCoordinator
+from hex_device_test.tools.trajectory_loader import (
+    DEFAULT_SEGMENT_DURATION,
+    estimate_waypoints_memory_mb,
+    get_replay_segment_duration,
+    load_waypoints_from_json_files,
+)
 
 # clean up
 def cleanup(coordinator):
@@ -38,6 +45,17 @@ def signal_handler(sig, frame, stop_event: threading.Event):
     signal.signal(signal.SIGTERM, signal.SIG_IGN) 
     print("---------------------------------- signal handler ----------------------------------")
     return
+
+DEFAULT_ARM_POSITION = [
+    [-0.75, -0.25, 3.0, -1.5, 0, 0],
+    [-0.75, 1.35, 0, 1.5, 0, 2.5],
+    [-0.75, -0.25, 3.0, -1.5, 0, 0],
+    [-2.00, -0.25, 3.0, -1.5, -1.5, 0],
+    [2.00, -0.25, 3.0, -1.5, 1.5, 0],
+    [0.75, -0.25, 3.0, -1.5, 0, 0],
+    [0.75, -1.5, 1.5, 1.5, 0, -2.5],
+    [0.75, -0.25, 3.0, -1.5, 0, 0],
+]
 
 def main():
     # 标准库中获取命令行参数：数组
@@ -74,6 +92,22 @@ def main():
         action='store_true',
         default=False,
         help='Enable API timeout check.'
+    )
+
+    parser.add_argument(
+        '--points-json',
+        type=Path,
+        nargs='+',
+        default=None,
+        metavar='JSON',
+        help='One or more recorded trajectory JSON files; waypoints are concatenated in order'
+    )
+
+    parser.add_argument(
+        '--stride',
+        type=int,
+        default=1,
+        help='Sample every N frames when loading --points-json (default: 1)'
     )
     
     # =============== parse args ===============
@@ -122,19 +156,19 @@ def main():
             'joint_limit': [-2.7, 2.7, -2.0, 2.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_2',
-            'joint_limit': [-1.57, 2.094, -0.65, 0.65, 0.0, 0.0]
+            'joint_limit': [-1.57, 2.094, -1.0, 1.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_3',
-            'joint_limit': [0.0, 3.14159265359, -1.2, 1.2, 0.0, 0.0]
+            'joint_limit': [0.0, 3.14159265359, -1.5, 1.5, 0.0, 0.0]
         }, {
             'joint_name': 'joint_4',
             'joint_limit': [-1.5, 1.5, -1.5, 1.5, 0.0, 0.0]
         }, {
             'joint_name': 'joint_5',
-            'joint_limit': [-1.56, 1.56, -1.2, 1.2, 0.0, 0.0]
+            'joint_limit': [-1.56, 1.56, -1.5, 1.5, 0.0, 0.0]
         }, {
             'joint_name': 'joint_6',
-            'joint_limit': [-1.57, 1.57, -1.2, 1.2, 0.0, 0.0]
+            'joint_limit': [-1.57, 1.57, -1.5, 1.5, 0.0, 0.0]
         }]
     }
     
@@ -145,21 +179,29 @@ def main():
     #     [-0.5, 0.623598775598, 1.59439265359, -1.57, 1.0472, 0.0]
     # ]
     
-    arm_position = [
-        [-0.75, -0.25, 3.0, -1.5, 0, 0],
-        [-0.75, 1.35, 0, 1.5, 0, 2.5],
-        [-0.75, -0.25, 3.0, -1.5, 0, 0],
-        
-        [-2.00, -0.25, 3.0, -1.5, -1.5, 0],
-        [2.00, -0.25, 3.0, -1.5, 1.5, 0],
-        
-        [0.75, -0.25, 3.0, -1.5, 0, 0],
-        [0.75, -1.5, 1.5, 1.5, 0, -2.5],
-        [0.75, -0.25, 3.0, -1.5, 0, 0],
-    ]
-        
-        
-        
+    if args.points_json is not None:
+        for json_path in args.points_json:
+            if not json_path.is_file():
+                print(f"Error: points JSON not found: {json_path}")
+                return
+        arm_position = load_waypoints_from_json_files(args.points_json, stride=args.stride)
+        segment_duration = get_replay_segment_duration(args.points_json, stride=args.stride)
+        mem_mb = estimate_waypoints_memory_mb(len(arm_position))
+        print(f"Loaded {len(arm_position)} waypoints from {len(args.points_json)} file(s)")
+        for json_path in args.points_json:
+            print(f"  - {json_path}")
+        print(
+            f"stride={args.stride}, segment_duration={segment_duration}s, "
+            f"estimated waypoints memory ~{mem_mb:.2f} MB"
+        )
+    else:
+        arm_position = DEFAULT_ARM_POSITION
+        segment_duration = DEFAULT_SEGMENT_DURATION
+        print(
+            f"Using default trajectory ({len(arm_position)} waypoints, "
+            f"segment_duration={segment_duration}s)"
+        )
+
     stop_event = threading.Event()
     coordinator = None
     try:
@@ -168,6 +210,7 @@ def main():
             enable_kcp, 
             arm_config=config_dict,
             waypoints=arm_position,
+            segment_duration=segment_duration,
             enable_view=enable_view,
             check_timeout=check_timeout
         )

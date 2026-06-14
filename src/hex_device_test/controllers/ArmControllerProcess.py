@@ -16,6 +16,7 @@ from ..tools.plotjuggle import PlotjuggleDraw
 
 from .BaseController import BaseController
 from .TrajectoryController import TrajectoryPlanner
+from ..tools.trajectory_loader import DEFAULT_SEGMENT_DURATION
 
 from ..statuses.ArmProcessIPC import ArmCommChannel
 from ..statuses.ArmStatus import ArmControllerStatus,ArmErrorStatus
@@ -78,6 +79,8 @@ class ArmControllerMp(BaseController):
         
         # device
         self._arm_config = None
+        self._waypoints = None
+        self._segment_duration = None
 
         # Task
         self._loop_running = mp.Event()
@@ -100,6 +103,7 @@ class ArmControllerMp(BaseController):
                 self._loop_running,
                 self._task_loop_hz,
                 self._waypoints,
+                self._segment_duration,
                 self._arm_ipc,
                 self._arm_config,
                 self._mp_queue
@@ -136,6 +140,9 @@ class ArmControllerMp(BaseController):
     
     def set_waypoints(self,waypoint):
         self._waypoints = waypoint
+
+    def set_segment_duration(self, segment_duration):
+        self._segment_duration = segment_duration
     
     def set_view(self, view):
         self._view = view
@@ -201,7 +208,8 @@ class ArmControllerMp(BaseController):
         check_timeout,
         loop_running, 
         task_hz, 
-        waypoints, 
+        waypoints,
+        segment_duration,
         arm_ipc:ArmCommChannel,
         arm_config,
         mp_queue:mp.Queue):
@@ -220,7 +228,9 @@ class ArmControllerMp(BaseController):
         trajectory = None
         
         if waypoints:
-            trajectory = TrajectoryPlanner(waypoints=waypoints, segment_duration=2.5)
+            duration = segment_duration if segment_duration is not None else DEFAULT_SEGMENT_DURATION
+            trajectory = TrajectoryPlanner(waypoints=waypoints, segment_duration=duration)
+            print(f"dev{device_id}: trajectory segment_duration={duration}s")
             
         task_interval = 1.0 / task_hz
         
