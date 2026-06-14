@@ -15,12 +15,13 @@ from ..tools.CsvLogger import write_csv
 
 class ArmCoordinator(BaseCoordinator):
     
-    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, enable_view: bool = False,check_timeout:bool=False):
+    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, segment_duration: Optional[float] = None, enable_view: bool = False,check_timeout:bool=False):
         super().__init__()
         
         self._task = None
         self._enable_kcp = enable_kcp
         self._waypoints = waypoints
+        self._segment_duration = segment_duration
         self._enable_view = enable_view
         self._check_timeout = check_timeout
         
@@ -70,6 +71,7 @@ class ArmCoordinator(BaseCoordinator):
         for controller in self._controllers_list:
             controller.set_arm_config(arm_config)
             controller.set_waypoints(self._waypoints)
+            controller.set_segment_duration(self._segment_duration)
             controller.set_view(self._enable_view)
             controller.set_check_timeout(self._check_timeout)
             controller.set_mp_queue(self._mp_quque)
@@ -107,7 +109,7 @@ class ArmCoordinator(BaseCoordinator):
         
         # out csv
         t = time.strftime("%Y-%m-%d %H:%M:%S")
-        write_csv(self._mp_quque,f"~/hex_device_log/arm_test_{t}.csv")
+        write_csv(self._mp_quque,f"/home/tl/ssd/docker_link/python/hex_device_test/log/arm_test_{t}.csv")
         
         # ipc_clean
         self._ipc_clean()
