@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 
 
-from dataclasses import dataclass
-
 # from hex_device_test.managers.Coordinator import ArmCoordinator
 from hex_device_test.managers.CoordinatorProcess import ArmCoordinator
 from hex_device_test.tools.trajectory_loader import (
@@ -110,6 +108,14 @@ def main():
         help='Sample every N frames when loading --points-json (default: 1)'
     )
     
+    parser.add_argument(
+        '--temp-csv-dir',
+        type=str,
+        default= None,
+        metavar='DIR',
+        help='Directory to write per-device motor temperature CSV files (e.g. /tmp/temp_logs)'
+    )
+    
     # =============== parse args ===============
     args = parser.parse_args()
     
@@ -122,6 +128,7 @@ def main():
     enable_kcp = args.KCP
     enable_view = args.view
     check_timeout = args.timeout
+    temp_csv_dir = args.temp_csv_dir
     # config
     # config_dict = {
     #     'name':'Archer_d6y',
@@ -147,22 +154,23 @@ def main():
     #         'joint_limit': [-1.57, 1.57, -0.5, 0.5, 0.0, 0.0]
     #     }]
     # }
+    
     config_dict = {
         'name':'Archer_d6y',
         'dof_num': 'six_axis',
         'motor_model': [0x80] * 6,
         'joints': [{
             'joint_name': 'joint_1',
-            'joint_limit': [-2.7, 2.7, -2.0, 2.0, 0.0, 0.0]
+            'joint_limit': [-2.7, 2.7, -1.0, 1.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_2',
             'joint_limit': [-1.57, 2.094, -1.0, 1.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_3',
-            'joint_limit': [0.0, 3.14159265359, -1.5, 1.5, 0.0, 0.0]
+            'joint_limit': [0.0, 3.14159265359, -1.0, 1.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_4',
-            'joint_limit': [-1.5, 1.5, -1.5, 1.5, 0.0, 0.0]
+            'joint_limit': [-1.5, 1.5, -1.0, 1.0, 0.0, 0.0]
         }, {
             'joint_name': 'joint_5',
             'joint_limit': [-1.56, 1.56, -1.5, 1.5, 0.0, 0.0]
@@ -171,6 +179,32 @@ def main():
             'joint_limit': [-1.57, 1.57, -1.5, 1.5, 0.0, 0.0]
         }]
     }
+
+    # # Faster
+    # config_dict = {
+    #     'name':'Archer_d6y',
+    #     'dof_num': 'six_axis',
+    #     'motor_model': [0x80] * 6,
+    #     'joints': [{
+    #         'joint_name': 'joint_1',
+    #         'joint_limit': [-2.7, 2.7, -2.0, 2.0, 0.0, 0.0]
+    #     }, {
+    #         'joint_name': 'joint_2',
+    #         'joint_limit': [-1.57, 2.094, -1.2, 1.2, 0.0, 0.0]
+    #     }, {
+    #         'joint_name': 'joint_3',
+    #         'joint_limit': [0.0, 3.14159265359, -1.2, 1.2, 0.0, 0.0]
+    #     }, {
+    #         'joint_name': 'joint_4',
+    #         'joint_limit': [-1.5, 1.5, -2.0, 2.0, 0.0, 0.0]
+    #     }, {
+    #         'joint_name': 'joint_5',
+    #         'joint_limit': [-1.56, 1.56, -2.0, 2.0, 0.0, 0.0]
+    #     }, {
+    #         'joint_name': 'joint_6',
+    #         'joint_limit': [-1.57, 1.57, -2.0, 2.0, 0.0, 0.0]
+    #     }]
+    # }
     
     # arm_position = [
     #     [0.0, 0.223598775598, 0.0, 0.0, 0.0, 0.0],
@@ -212,7 +246,8 @@ def main():
             waypoints=arm_position,
             segment_duration=segment_duration,
             enable_view=enable_view,
-            check_timeout=check_timeout
+            check_timeout=check_timeout,
+            temp_csv_dir=temp_csv_dir,
         )
         
         # 信号处理

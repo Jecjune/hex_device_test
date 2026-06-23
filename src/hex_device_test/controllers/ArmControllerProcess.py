@@ -6,6 +6,8 @@ import copy
 from enum import Enum
 from collections import deque
 import multiprocessing as mp
+import csv
+import os
 # mp.set_start_method('forkserver', force=True)
 
 from hex_device import HexDeviceApi
@@ -89,6 +91,7 @@ class ArmControllerMp(BaseController):
         # 共享内存引用（由协调器传入）
         self._arm_ipc: Optional[ArmCommChannel] = None
         self._mp_queue = None
+        self._temp_csv_dir = None
     
     def start(self) -> bool:
         
@@ -106,7 +109,8 @@ class ArmControllerMp(BaseController):
                 self._segment_duration,
                 self._arm_ipc,
                 self._arm_config,
-                self._mp_queue
+                self._mp_queue,
+                self._temp_csv_dir
             ))
             self._task_process.start()
 
@@ -155,6 +159,9 @@ class ArmControllerMp(BaseController):
         
     def set_mp_queue(self,queue):
         self._mp_queue = queue
+    
+    def set_temp_csv_dir(self, temp_csv_dir: str):
+        self._temp_csv_dir = temp_csv_dir
     
     # ==================== task ====================
     
@@ -212,7 +219,8 @@ class ArmControllerMp(BaseController):
         segment_duration,
         arm_ipc:ArmCommChannel,
         arm_config,
-        mp_queue:mp.Queue):
+        mp_queue:mp.Queue,
+        temp_csv_dir:Optional[str] = None):
         """
         子进程主循环
         """
@@ -233,6 +241,21 @@ class ArmControllerMp(BaseController):
             print(f"dev{device_id}: trajectory segment_duration={duration}s")
             
         task_interval = 1.0 / task_hz
+        
+        # 温度 CSV 文件（每个臂一个文件）
+        temp_csv_file = None
+        temp_csv_writer = None
+        last_temp_log_time = 0.0
+        if temp_csv_dir:
+            os.makedirs(temp_csv_dir, exist_ok=True)
+            start_ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+            csv_path = os.path.join(temp_csv_dir, f"temp_dev{device_id}_{start_ts}.csv")
+            temp_csv_file = open(csv_path, 'w', newline='')
+            temp_csv_writer = csv.writer(temp_csv_file)
+            # header: time + motor0~motor5
+            header = ["timestamp"] + [f"motor_{i}" for i in range(6)]
+            temp_csv_writer.writerow(header)
+            print(f"dev{device_id}: temperature CSV -> {csv_path}")
         
         is_view = view
         target_pos = None
@@ -345,7 +368,23 @@ class ArmControllerMp(BaseController):
                             )
                     
                     # running state update
-                    device_state.update(device.get_motor_temperatures(),device.get_motor_driver_temperatures())
+                    motor_temps = device.get_motor_temperatures()
+                    driver_temps = device.get_motor_driver_temperatures()
+                    device_state.update(motor_temps, driver_temps)
+                    
+                    # 每 ~1 秒记录一次电机温度到 CSV（基于实际时间间隔）
+                    if temp_csv_writer is not None:
+                        now = time.monotonic()
+                        if now - last_temp_log_time >= 1.0:
+                            last_temp_log_time = now
+                            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+                            row = [ts]
+                            if motor_temps is not None:
+                                row.extend(float(v) for v in motor_temps[:6])
+                            else:
+                                row.extend([""] * 6)
+                            temp_csv_writer.writerow(row)
+                            temp_csv_file.flush()
                     
                     time.sleep(task_interval)
                 
@@ -356,6 +395,8 @@ class ArmControllerMp(BaseController):
                 except KeyboardInterrupt:
                     pass
         finally:
+            if temp_csv_file:
+                temp_csv_file.close()
             pass
         # ================== 资源回收 ===================
         # IPC close

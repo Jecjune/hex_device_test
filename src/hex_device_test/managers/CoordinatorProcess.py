@@ -15,7 +15,7 @@ from ..tools.CsvLogger import write_csv
 
 class ArmCoordinator(BaseCoordinator):
     
-    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, segment_duration: Optional[float] = None, enable_view: bool = False,check_timeout:bool=False):
+    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, segment_duration: Optional[float] = None, enable_view: bool = False,check_timeout:bool=False, temp_csv_dir: Optional[str] = None):
         super().__init__()
         
         self._task = None
@@ -24,6 +24,7 @@ class ArmCoordinator(BaseCoordinator):
         self._segment_duration = segment_duration
         self._enable_view = enable_view
         self._check_timeout = check_timeout
+        self._temp_csv_dir = temp_csv_dir
         
         # 进程通信管理
         self._arm_ipc = ArmCommChannelManager()
@@ -75,6 +76,8 @@ class ArmCoordinator(BaseCoordinator):
             controller.set_view(self._enable_view)
             controller.set_check_timeout(self._check_timeout)
             controller.set_mp_queue(self._mp_quque)
+            if self._temp_csv_dir:
+                controller.set_temp_csv_dir(self._temp_csv_dir)
         
         for controller in self._controllers_list:
             controller.start()
