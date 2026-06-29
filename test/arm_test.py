@@ -13,7 +13,7 @@ from hex_device_test.tools.trajectory_loader import (
     DEFAULT_SEGMENT_DURATION,
     estimate_waypoints_memory_mb,
     get_replay_segment_duration,
-    load_waypoints_from_json_files,
+    load_waypoints_with_segment_boundaries,
 )
 
 # clean up
@@ -107,6 +107,21 @@ def main():
         default=1,
         help='Sample every N frames when loading --points-json (default: 1)'
     )
+
+    parser.add_argument(
+        '--time-sleep',
+        type=float,
+        default=0.0,
+        metavar='SECONDS',
+        help='Seconds to hold init_pos between trajectory segments when using --points-json (default: 0, 0 to skip return and hold)'
+    )
+
+    parser.add_argument(
+        '--raw',
+        action='store_true',
+        default=False,
+        help='Replay waypoints as-is without S-curve interpolation between points'
+    )
     
     parser.add_argument(
         '--temp-csv-dir',
@@ -129,6 +144,9 @@ def main():
     enable_view = args.view
     check_timeout = args.timeout
     temp_csv_dir = args.temp_csv_dir
+    time_sleep = args.time_sleep
+    interpolate = not args.raw
+    segment_ends = None
     # config
     # config_dict = {
     #     'name':'Archer_d6y',
@@ -218,14 +236,18 @@ def main():
             if not json_path.is_file():
                 print(f"Error: points JSON not found: {json_path}")
                 return
-        arm_position = load_waypoints_from_json_files(args.points_json, stride=args.stride)
+        arm_position, segment_ends = load_waypoints_with_segment_boundaries(
+            args.points_json, stride=args.stride
+        )
         segment_duration = get_replay_segment_duration(args.points_json, stride=args.stride)
         mem_mb = estimate_waypoints_memory_mb(len(arm_position))
         print(f"Loaded {len(arm_position)} waypoints from {len(args.points_json)} file(s)")
-        for json_path in args.points_json:
-            print(f"  - {json_path}")
+        for idx, json_path in enumerate(args.points_json):
+            end_idx = segment_ends[idx] - 1
+            print(f"  - {json_path} (segment {idx + 1} end waypoint index: {end_idx})")
         print(
             f"stride={args.stride}, segment_duration={segment_duration}s, "
+            f"time_sleep={time_sleep}s, interpolate={interpolate}, "
             f"estimated waypoints memory ~{mem_mb:.2f} MB"
         )
     else:
@@ -233,7 +255,7 @@ def main():
         segment_duration = DEFAULT_SEGMENT_DURATION
         print(
             f"Using default trajectory ({len(arm_position)} waypoints, "
-            f"segment_duration={segment_duration}s)"
+            f"segment_duration={segment_duration}s, interpolate={interpolate})"
         )
 
     stop_event = threading.Event()
@@ -245,6 +267,9 @@ def main():
             arm_config=config_dict,
             waypoints=arm_position,
             segment_duration=segment_duration,
+            segment_ends=segment_ends,
+            time_sleep=time_sleep,
+            interpolate=interpolate,
             enable_view=enable_view,
             check_timeout=check_timeout,
             temp_csv_dir=temp_csv_dir,

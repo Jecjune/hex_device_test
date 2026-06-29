@@ -82,16 +82,27 @@ def load_waypoints_from_json_files(
     json_paths: Sequence[Path],
     stride: int = 1,
 ) -> List[List[float]]:
+    waypoints, _ = load_waypoints_with_segment_boundaries(json_paths, stride=stride)
+    return waypoints
+
+
+def load_waypoints_with_segment_boundaries(
+    json_paths: Sequence[Path],
+    stride: int = 1,
+) -> Tuple[List[List[float]], List[int]]:
+    """Load waypoints and exclusive end indices marking each JSON file's segment."""
     if not json_paths:
         raise ValueError("json_paths must not be empty")
 
     merged: List[List[float]] = []
+    segment_ends: List[int] = []
     for json_path in json_paths:
         waypoints, _ = _load_single_json(json_path, stride)
         merged.extend(waypoints)
+        segment_ends.append(len(merged))
         gc.collect()
 
-    return merged
+    return merged, segment_ends
 
 
 def get_replay_segment_duration(

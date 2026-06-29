@@ -17,7 +17,7 @@ from hex_device_test.controllers.ErrorChecker import ArmErrorChecker
 from ..tools.plotjuggle import PlotjuggleDraw
 
 from .BaseController import BaseController
-from .TrajectoryController import TrajectoryPlanner
+from .TrajectoryController import TrajectoryPlanner, SegmentedTrajectoryPlanner
 from ..tools.trajectory_loader import DEFAULT_SEGMENT_DURATION
 
 from ..statuses.ArmProcessIPC import ArmCommChannel
@@ -83,6 +83,9 @@ class ArmControllerMp(BaseController):
         self._arm_config = None
         self._waypoints = None
         self._segment_duration = None
+        self._segment_ends = None
+        self._time_sleep = None
+        self._interpolate = True
 
         # Task
         self._loop_running = mp.Event()
@@ -107,6 +110,9 @@ class ArmControllerMp(BaseController):
                 self._task_loop_hz,
                 self._waypoints,
                 self._segment_duration,
+                self._segment_ends,
+                self._time_sleep,
+                self._interpolate,
                 self._arm_ipc,
                 self._arm_config,
                 self._mp_queue,
@@ -147,6 +153,15 @@ class ArmControllerMp(BaseController):
 
     def set_segment_duration(self, segment_duration):
         self._segment_duration = segment_duration
+
+    def set_segment_ends(self, segment_ends):
+        self._segment_ends = segment_ends
+
+    def set_time_sleep(self, time_sleep):
+        self._time_sleep = time_sleep
+
+    def set_interpolate(self, interpolate: bool):
+        self._interpolate = interpolate
     
     def set_view(self, view):
         self._view = view
@@ -217,6 +232,9 @@ class ArmControllerMp(BaseController):
         task_hz, 
         waypoints,
         segment_duration,
+        segment_ends,
+        time_sleep,
+        interpolate,
         arm_ipc:ArmCommChannel,
         arm_config,
         mp_queue:mp.Queue,
@@ -237,8 +255,30 @@ class ArmControllerMp(BaseController):
         
         if waypoints:
             duration = segment_duration if segment_duration is not None else DEFAULT_SEGMENT_DURATION
-            trajectory = TrajectoryPlanner(waypoints=waypoints, segment_duration=duration)
-            print(f"dev{device_id}: trajectory segment_duration={duration}s")
+            if segment_ends:
+                trajectory = SegmentedTrajectoryPlanner(
+                    waypoints=waypoints,
+                    segment_ends=segment_ends,
+                    segment_duration=duration,
+                    hold_duration=time_sleep if time_sleep is not None else 0.0,
+                    interpolate=interpolate,
+                )
+                print(
+                    f"dev{device_id}: segmented trajectory, {len(segment_ends)} segment(s), "
+                    f"segment_duration={duration}s, time_sleep={time_sleep}s, "
+                    f"interpolate={interpolate}, "
+                    f"segment_ends={segment_ends}"
+                )
+            else:
+                trajectory = TrajectoryPlanner(
+                    waypoints=waypoints,
+                    segment_duration=duration,
+                    interpolate=interpolate,
+                )
+                print(
+                    f"dev{device_id}: trajectory segment_duration={duration}s, "
+                    f"interpolate={interpolate}"
+                )
             
         task_interval = 1.0 / task_hz
         

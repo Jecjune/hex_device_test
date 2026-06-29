@@ -15,13 +15,16 @@ from ..tools.CsvLogger import write_csv
 
 class ArmCoordinator(BaseCoordinator):
     
-    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, segment_duration: Optional[float] = None, enable_view: bool = False,check_timeout:bool=False, temp_csv_dir: Optional[str] = None):
+    def __init__(self, device_ws_url_list: Optional[List[dict]] = None, enable_kcp: bool = False, arm_config: Optional[dict] = None, waypoints: Optional[List[dict]] = None, segment_duration: Optional[float] = None, segment_ends: Optional[List[int]] = None, time_sleep: Optional[float] = None, interpolate: bool = True, enable_view: bool = False,check_timeout:bool=False, temp_csv_dir: Optional[str] = None):
         super().__init__()
         
         self._task = None
         self._enable_kcp = enable_kcp
         self._waypoints = waypoints
         self._segment_duration = segment_duration
+        self._segment_ends = segment_ends
+        self._time_sleep = time_sleep
+        self._interpolate = interpolate
         self._enable_view = enable_view
         self._check_timeout = check_timeout
         self._temp_csv_dir = temp_csv_dir
@@ -73,6 +76,9 @@ class ArmCoordinator(BaseCoordinator):
             controller.set_arm_config(arm_config)
             controller.set_waypoints(self._waypoints)
             controller.set_segment_duration(self._segment_duration)
+            controller.set_segment_ends(self._segment_ends)
+            controller.set_time_sleep(self._time_sleep)
+            controller.set_interpolate(self._interpolate)
             controller.set_view(self._enable_view)
             controller.set_check_timeout(self._check_timeout)
             controller.set_mp_queue(self._mp_quque)
